@@ -22,7 +22,7 @@ import inspect
 from plano import *
 
 __all__ = [
-    "generate_readme", "run_steps", "Minikube",
+    "generate_readme", "run_steps", "Minikube", "Kind", "Cluster"
 ]
 
 standard_text = read_yaml(join(get_parent_dir(__file__), "standardtext.yaml"))
@@ -767,3 +767,84 @@ class Minikube:
         stop(self.tunnel)
 
         run("minikube delete -p skewer")
+
+
+
+class Kind:
+    def __init__(self, skewer_file):
+        self.skewer_file = skewer_file
+        self.kubeconfigs = []
+        self.work_dir = join(get_user_temp_dir(), "skewer")
+
+    def __enter__(self):
+        notice("Starting Kind")
+
+        check_environment()
+        check_program("kind")
+
+        cluster_name = "skewer"
+
+        existing_clusters = call("kind get clusters", quiet=True).splitlines()
+        if cluster_name in existing_clusters:
+            fail(f"A Kind cluster named '{cluster_name}' already exists. Delete it using 'kind delete cluster --name {cluster_name}'.")
+
+        remove(self.work_dir, quiet=True)
+        make_dir(self.work_dir, quiet=True)
+
+        run(f"kind create cluster --name {cluster_name}")
+
+        try:
+            model = Model(self.skewer_file)
+            model.check()
+
+            kube_sites = [x for _, x in model.sites if x.platform == "kubernetes"]
+
+            kubeconfig_path = f"{self.work_dir}/kubeconfig"
+
+            # Get the kubeconfig content and write to kubeconfig_path
+            kubeconfig_content = call(f"kind get kubeconfig --name {cluster_name}", quiet=True)
+            write(kubeconfig_path, kubeconfig_content)
+
+            for site in kube_sites:
+                site_kubeconfig = site.env["KUBECONFIG"]
+                site_kubeconfig = site_kubeconfig.replace("~", self.work_dir)
+                site_kubeconfig = expand(site_kubeconfig)
+
+                site.env["KUBECONFIG"] = kubeconfig_path
+
+                self.kubeconfigs.append(kubeconfig_path)
+
+                with site:
+                    check_file(ENV["KUBECONFIG"])
+        except:
+            run(f"kind delete cluster --name {cluster_name}")
+            raise
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        notice("Stopping Kind")
+
+        run("kind delete cluster --name skewer")
+
+class Cluster:
+    def __init__(self, skewer_file):
+        self.skewer_file = skewer_file
+        self.work_dir = join(get_user_temp_dir(), "skewer")
+        self.kubeconfigs = []
+        self.cluster_impl = None
+
+    def __enter__(self):
+        if 'SKEWER_DEMO_KIND' in ENV:
+            notice("Using Kind cluster")
+            self.cluster_impl = Kind(self.skewer_file)
+        else:
+            notice("Using Minikube cluster")
+            self.cluster_impl = Minikube(self.skewer_file)
+
+        self.cluster_impl.__enter__()
+        self.kubeconfigs = self.cluster_impl.kubeconfigs
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cluster_impl.__exit__(exc_type, exc_value, traceback)
