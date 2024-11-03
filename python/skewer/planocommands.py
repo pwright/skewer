@@ -58,10 +58,15 @@ def run_(*kubeconfigs, debug=False):
 
     If no kubeconfigs are provided, Skewer starts a local Minikube
     instance and runs the steps using it.
+
+    If SKEWER_DEMO_BASH is set, no cluster is created, and steps are run without a cluster.
     """
-    if not kubeconfigs:
-        with Cluster("skewer.yaml") as mk:
-            run_steps("skewer.yaml", kubeconfigs=mk.kubeconfigs, work_dir=mk.work_dir, debug=debug)
+    if 'SKEWER_DEMO_BASH' in ENV:
+        notice("Running steps without creating a cluster due to SKEWER_DEMO_BASH")
+        run_steps("skewer.yaml", kubeconfigs=[], debug=debug)
+    elif not kubeconfigs:
+        with Cluster("skewer.yaml") as cluster:
+            run_steps("skewer.yaml", kubeconfigs=cluster.kubeconfigs, work_dir=cluster.work_dir, debug=debug)
     else:
         run_steps("skewer.yaml", kubeconfigs=kubeconfigs, debug=debug)
 

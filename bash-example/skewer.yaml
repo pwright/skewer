@@ -1,0 +1,39 @@
+title: Skupper Hello World
+subtitle: A minimal HTTP application deployed across Kubernetes clusters using Skupper
+overview: |
+  An overview
+prerequisites: |
+  Some prerequisites
+sites:
+  west:
+    title: West
+    platform: podman
+    namespace: west
+    env:
+      SKUPPER_PLATFORM: podman
+  east:
+    title: East
+    platform: podman
+    namespace: east
+    env:
+      SKUPPER_PLATFORM: podman
+steps:
+
+  - title: ls
+    commands:
+      west:
+        - run: "cd ..; ls"
+        - run: "ls"
+  - title: pwd
+    commands:
+      west:
+        - run: "pwd"
+
+summary: |
+  @default@
+
+  More summary
+next_steps: |
+  @default@
+
+  More steps
