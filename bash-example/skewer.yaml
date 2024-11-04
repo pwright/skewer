@@ -8,10 +8,14 @@ overview: |
   until user has tested the result on the web server.
 prerequisites: |
   * npm  
+    ```
     brew install node
     https://github.com/nvm-sh/nvm
+    ```
   * python
-    pyyaml
+    ```
+    pip install pyyaml
+    ```
 
 sites:
   server:
@@ -28,14 +32,14 @@ sites:
       SKUPPER_PLATFORM: podman
 steps:
 
-  - title: Start the HTTP web server without an `index.html`` file
+  - title: Start the HTTP web server without an `index.html` file
     commands:
       server:
         - run: "rm -f index.html"
         - run: "npm_config_yes=true npx  http-server -s -p 4567 . &"
   - title: Create an `index.html` file
     commands:
-      server:
+      config:
         - run: "npm_config_yes=true npx  markdown-to-html-cli --source index.md"
         - run: "read -p 'Navigate to http://localhost:4567 and then press enter to exit.' input "
         - run: "kill $(ps aux | grep '[e]xec http-server' | awk '{print $2}')"

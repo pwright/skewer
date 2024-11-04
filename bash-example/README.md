@@ -10,7 +10,7 @@
 
 * [Overview](#overview)
 * [Prerequisites](#prerequisites)
-* [Step 1: Start the HTTP web server without an `index.html`` file](#step-1-start-the-http-web-server-without-an-indexhtml-file)
+* [Step 1: Start the HTTP web server without an `index.html` file](#step-1-start-the-http-web-server-without-an-indexhtml-file)
 * [Step 2: Create an `index.html` file](#step-2-create-an-indexhtml-file)
 * [Summary](#summary)
 * [Next steps](#next-steps)
@@ -26,12 +26,16 @@ until user has tested the result on the web server.
 ## Prerequisites
 
 * npm  
+  ```
   brew install node
   https://github.com/nvm-sh/nvm
+  ```
 * python
-  pyyaml
+  ```
+  pip install pyyaml
+  ```
 
-## Step 1: Start the HTTP web server without an `index.html`` file
+## Step 1: Start the HTTP web server without an `index.html` file
 
 _**Server:**_
 
@@ -42,7 +46,7 @@ npm_config_yes=true npx  http-server -s -p 4567 . &
 
 ## Step 2: Create an `index.html` file
 
-_**Server:**_
+_**Config:**_
 
 ~~~ shell
 npm_config_yes=true npx  markdown-to-html-cli --source index.md

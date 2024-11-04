@@ -23,6 +23,8 @@ and produces two outputs: a `README.md` file and a test routine.
 
 [Example `README.md` output](README.md)
 
+[Example `README.md` HTML](README.html)
+
 ## Setting up Skewer for your own example
 
 **Note:** This is how you set things up from scratch.  You can also
