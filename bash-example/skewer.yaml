@@ -1,33 +1,44 @@
-title: Skupper Hello World
-subtitle: A minimal HTTP application deployed across Kubernetes clusters using Skupper
+title: Skewer Hello World
+subtitle: A minimal HTTP application deployed and a configuration created
+workflow: 
 overview: |
-  An overview
+  In this example, we see how you create contexts (sites) and run commands.
+  In the Server context (site), we delete the index.html file and run a 
+  web server. In the Config context (site), we convert md to html and wait
+  until user has tested the result on the web server.
 prerequisites: |
-  Some prerequisites
+  * npm  
+    brew install node
+    https://github.com/nvm-sh/nvm
+  * python
+    pyyaml
+
 sites:
-  west:
-    title: West
+  server:
+    title: Server
     platform: podman
-    namespace: west
+    namespace: server
     env:
       SKUPPER_PLATFORM: podman
-  east:
-    title: East
+  config:
+    title: Config
     platform: podman
-    namespace: east
+    namespace: config
     env:
       SKUPPER_PLATFORM: podman
 steps:
 
-  - title: ls
+  - title: Start the HTTP web server without an `index.html`` file
     commands:
-      west:
-        - run: "cd ..; ls"
-        - run: "ls"
-  - title: pwd
+      server:
+        - run: "rm -f index.html"
+        - run: "npm_config_yes=true npx  http-server -s -p 4567 . &"
+  - title: Create an `index.html` file
     commands:
-      west:
-        - run: "pwd"
+      server:
+        - run: "npm_config_yes=true npx  markdown-to-html-cli --source index.md"
+        - run: "read -p 'Navigate to http://localhost:4567 and then press enter to exit.' input "
+        - run: "kill $(ps aux | grep '[e]xec http-server' | awk '{print $2}')"
 
 summary: |
   @default@
