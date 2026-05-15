@@ -4,6 +4,14 @@
 #   Terminal 1: ./plano demo
 #   Terminal 2: ./plano demo_extend examples/cli/skewer-extend.yaml
 
+title: Skupper Network Observer Extension
+subtitle: Add observability and console access to a running Skupper demo
+overview: |
+  This extension adds the Skupper Network Observer to your running demo,
+  providing a web console for monitoring and managing your Skupper network.
+  The Network Observer offers real-time visibility into service connectivity,
+  traffic flows, and network topology across your multi-cluster deployment.
+
 steps:
 
 

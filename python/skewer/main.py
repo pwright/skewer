@@ -22,7 +22,7 @@ import inspect
 from plano import *
 
 __all__ = [
-    "generate_readme", "run_steps", "run_step", "print_debug_output", "Minikube",
+    "generate_readme", "generate_extend_readme", "run_steps", "run_step", "print_debug_output", "Minikube",
     "save_demo_context", "load_demo_context", "is_demo_active",
     "validate_demo_context", "create_extended_model",
 ]
@@ -580,6 +580,136 @@ def generate_readme_step(model, step):
         out.append(step.postamble.strip())
 
     return "\n".join(out).strip()
+
+def generate_extend_readme(extend_file, output_file):
+    """
+    Generate markdown documentation from an extension YAML file.
+
+    Extension files contain only a 'steps' section and are used to
+    extend running demos with additional steps.
+    """
+    notice(f"Generating extension readme (extend_file='{extend_file}', output_file='{output_file}')")
+
+    # Load extension data directly (no Model - extensions have no sites/title)
+    extend_data = read_yaml(extend_file)
+
+    if "steps" not in extend_data:
+        fail(f"Extension file '{extend_file}' must contain a 'steps' section")
+
+    if not isinstance(extend_data["steps"], list):
+        fail(f"'steps' section in '{extend_file}' must be a list")
+
+    out = list()
+
+    # Helper to generate TOC fragment
+    def generate_fragment(heading):
+        fragment = string_replace_re(heading, r"[ -]", "_")
+        fragment = string_replace_re(fragment, r"[\W]", "")
+        fragment = fragment.replace("_", "-")
+        fragment = fragment.lower()
+        return fragment
+
+    # Helper to generate step heading
+    def generate_step_heading(step_data, index):
+        title = step_data.get("title", f"Step {index}")
+        numbered = step_data.get("numbered", True)
+
+        if numbered:
+            return f"Step {index}: {title}"
+        else:
+            return title
+
+    # Generate header
+    out.append(f"<!-- NOTE: This file is generated from {extend_file}.  Do not edit it directly. -->")
+    out.append("")
+
+    # Generate title - use from file or derive from filename
+    if "title" in extend_data:
+        title = extend_data["title"]
+    else:
+        title = extend_file.replace(".yaml", "").replace("skewer-", "").replace("-", " ").title()
+
+    out.append(f"# {title}")
+    out.append("")
+
+    # Add subtitle if present
+    if "subtitle" in extend_data:
+        out.append(f"#### {extend_data['subtitle']}")
+        out.append("")
+
+    # Add overview if present
+    if "overview" in extend_data:
+        out.append(extend_data["overview"].strip())
+        out.append("")
+
+    # Build table of contents
+    out.append("## Contents")
+    out.append("")
+
+    for i, step_data in enumerate(extend_data["steps"], 1):
+        heading = generate_step_heading(step_data, i)
+        fragment = generate_fragment(heading)
+        out.append(f"* [{heading}](#{fragment})")
+
+    out.append("")
+
+    # Generate step sections
+    for i, step_data in enumerate(extend_data["steps"], 1):
+        heading = generate_step_heading(step_data, i)
+
+        out.append(f"## {heading}")
+        out.append("")
+
+        # Add preamble if present
+        if "preamble" in step_data:
+            out.append(step_data["preamble"].strip())
+            out.append("")
+
+        # Process commands by site
+        if "commands" in step_data:
+            for site_name, commands in step_data["commands"].items():
+                out.append(f"_**{site_name}:**_")
+                out.append("")
+                out.append("~~~ shell")
+
+                # Collect outputs for sample output section
+                outputs = list()
+
+                for cmd_data in commands:
+                    if not isinstance(cmd_data, dict):
+                        continue
+
+                    # Skip test-only commands
+                    if cmd_data.get("apply") == "test":
+                        continue
+
+                    # Add run commands
+                    if "run" in cmd_data:
+                        out.append(cmd_data["run"])
+
+                        # Track output if present
+                        if "output" in cmd_data:
+                            outputs.append((cmd_data["run"], cmd_data["output"]))
+
+                out.append("~~~")
+                out.append("")
+
+                # Add sample output section if there are outputs
+                if outputs:
+                    out.append("_Sample output:_")
+                    out.append("")
+                    out.append("~~~ console")
+                    out.append("\n\n".join((f"$ {run}\n{output.strip()}" for run, output in outputs)))
+                    out.append("~~~")
+                    out.append("")
+
+        # Add postamble if present
+        if "postamble" in step_data:
+            out.append(step_data["postamble"].strip())
+            out.append("")
+
+    # Write output file
+    write(output_file, "\n".join(out).strip() + "\n")
 
 def apply_kubeconfigs(model, kubeconfigs):
     kube_sites = [x for _, x in model.sites if x.platform == "kubernetes"]

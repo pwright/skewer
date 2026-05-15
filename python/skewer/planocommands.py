@@ -24,26 +24,75 @@ from skewer import *
 _debug_param = CommandParameter("debug", help="Produce extra debug output on failure")
 
 @command
-def generate(output="README.md"):
+def generate(*input_file, output=None):
     """
-    Generate README.md from the data in skewer.yaml
+    Generate markdown documentation from a skewer or extension YAML file
+
+    If input is a full skewer.yaml file, generates README.md.
+    If input is an extension file, generates <input>.md.
+
+    Usage:
+      ./plano generate                     # Uses skewer.yaml
+      ./plano generate skewer-extend.yaml  # Generates skewer-extend.md
     """
-    generate_readme("skewer.yaml", output)
+    # Handle input file parameter
+    if input_file:
+        input = input_file[0]
+    else:
+        input = "skewer.yaml"
+
+    # Determine output filename
+    if output is None:
+        if input == "skewer.yaml":
+            output = "README.md"
+        else:
+            output = input.replace(".yaml", ".md")
+
+    # Detect file type and generate accordingly
+    data = read_yaml(input)
+
+    if "sites" in data:
+        # Full skewer file
+        generate_readme(input, output)
+    else:
+        # Extension file (only has 'steps')
+        generate_extend_readme(input, output)
 
 @command
-def render(quiet=False):
+def render(*input_file, quiet=False):
     """
-    Render README.html from README.md
+    Render markdown documentation from YAML files
+
+    If input is not provided or is skewer.yaml, generates README.md and README.html.
+    If input is an extension file, generates only markdown (no HTML).
+
+    Examples:
+      ./plano render                      # skewer.yaml -> README.md + README.html
+      ./plano render skewer-extend.yaml   # -> skewer-extend.md
+      ./plano render skewer-getback.yaml  # -> skewer-getback.md
     """
-    generate()
+    # Handle input file parameter
+    if input_file:
+        input = input_file[0]
+    else:
+        input = "skewer.yaml"
 
-    markdown = read("README.md")
-    html = convert_github_markdown(markdown)
+    # Generate markdown
+    generate(input)
 
-    write("README.html", html)
+    # Only generate HTML for main README
+    if input == "skewer.yaml":
+        markdown = read("README.md")
+        html = convert_github_markdown(markdown)
+        write("README.html", html)
 
-    if not quiet:
-        print(f"file:{get_real_path('README.html')}")
+        if not quiet:
+            print(f"file:{get_real_path('README.html')}")
+    else:
+        # For extension files, just show the markdown path
+        output_file = input.replace(".yaml", ".md")
+        if not quiet:
+            print(f"file:{get_real_path(output_file)}")
 
 @command
 def clean():

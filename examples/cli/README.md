@@ -2,7 +2,7 @@
 
 # Skupper Hello World
 
-[![main](https://github.com/skupperproject/skewer/actions/workflows/main.yaml/badge.svg)](https://github.com/skupperproject/skewer/actions/workflows/main.yaml)
+[![main](https://github.com/pwright/skewer/actions/workflows/main.yaml/badge.svg)](https://github.com/pwright/skewer/actions/workflows/main.yaml)
 
 #### A minimal HTTP application deployed across Kubernetes clusters using Skupper
 
@@ -28,6 +28,7 @@ across cloud providers, data centers, and edge sites.
 * [Step 9: Fail as expected](#step-9-fail-as-expected)
 * [Step 10: Expose the backend service](#step-10-expose-the-backend-service)
 * [Step 11: Access the frontend service](#step-11-access-the-frontend-service)
+* [Step 12: Pause on demand](#step-12-pause-on-demand)
 * [Cleaning up](#cleaning-up)
 * [Summary](#summary)
 * [Next steps](#next-steps)
@@ -166,7 +167,7 @@ For Windows and other installation options, see [Installing
 Skupper][install-docs].
 
 [install-script]: https://github.com/skupperproject/skupper-website/blob/main/input/install.sh
-[install-docs]: https://skupper.io/install/
+[install-docs]: https://skupper.io/#installation
 
 ## Step 6: Create your sites
 
@@ -362,6 +363,14 @@ kubectl port-forward deployment/frontend 8080:8080
 
 You can now access the web interface by navigating to
 [http://localhost:8080](http://localhost:8080) in your browser.
+
+## Step 12: Pause on demand
+
+_**West:**_
+
+~~~ shell
+if [ -n "${SKEWER_PAUSE}" ]; then read a; fi
+~~~
 
 ## Cleaning up
 

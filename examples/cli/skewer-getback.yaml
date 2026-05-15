@@ -12,6 +12,14 @@
 #   kubectl port-forward -n west svc/getback-dashboard 9093:9093
 #   Open http://localhost:9093/
 
+title: Get-Back Multi-Cluster Demonstration
+subtitle: Deploy an interactive load balancing visualization tool across Skupper sites
+overview: |
+  This extension deploys the Get-Back service to both west and east sites,
+  demonstrating Skupper's multi-cluster load balancing capabilities. Get-Back
+  is a dual-protocol counter service with HTTP/TCP endpoints and an interactive
+  web dashboard that visualizes request distribution across sites in real-time.
+
 steps:
 
   - title: Deploy Get-Back service to west site
