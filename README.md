@@ -10,12 +10,16 @@ and produces two outputs: a `README.md` file and a test routine.
 
 #### Contents
 
-* [An example example](#an-example-example)
-* [Setting up Skewer for your own example](#setting-up-skewer-for-your-own-example)
-* [Skewer YAML](#skewer-yaml)
-* [Standard steps](#standard-steps)
-* [Demo mode](#demo-mode)
-* [Troubleshooting](#troubleshooting)
+- [Skewer](#skewer)
+      - [Contents](#contents)
+  - [An example example](#an-example-example)
+  - [Setting up Skewer for your own example](#setting-up-skewer-for-your-own-example)
+  - [Skewer YAML](#skewer-yaml)
+  - [Standard steps](#standard-steps)
+  - [Demo mode](#demo-mode)
+  - [Troubleshooting](#troubleshooting)
+    - [Subnet is already used](#subnet-is-already-used)
+  - [Notes on speeding up Minikube](#notes-on-speeding-up-minikube)
 
 ## An example example
 
@@ -361,6 +365,39 @@ up and exiting, it pauses so you can inspect things.
 It is enabled by setting the environment variable `SKEWER_DEMO` to any
 value when you call `./plano run` or one of its variants.  You can
 also use `./plano demo`, which sets the variable for you.
+
+
+## Running against existing clusters
+
+By default, `./plano run` and `./plano demo` start a local Minikube instance automatically and use it for all Kubernetes sites. If you want to run against your own clusters instead, pass kubeconfig file paths as positional arguments.
+
+Kubeconfigs are assigned to Kubernetes sites **in the order the sites are defined** in `skewer.yaml`. For example, given this site definition:
+
+```
+sites:    west:      platform: kubernetes      namespace: west      env:        KUBECONFIG: ~/.kube/config-west    east:      platform: kubernetes      namespace: east      env:        KUBECONFIG: ~/.kube/config-east
+```
+
+`west` is the first Kubernetes site and `east` is the second. To run with a remote OpenShift cluster for `west` and a local Minikube instance for `east`, first start Minikube and export its kubeconfig:
+
+```
+minikube start -p east  minikube -p east kubeconfig > ~/.kube/config-east-minikube
+```
+
+Then pass the kubeconfigs in site order (west first, east second):
+
+```
+./plano demo ~/.kube/config-west-openshift ~/.kube/config-east-minikube
+```
+
+Or equivalently for `run`:
+
+```
+./plano run ~/.kube/config-west-openshift ~/.kube/config-east-minikube
+```
+
+The provided kubeconfigs override the paths in `skewer.yaml` at runtime — the `skewer.yaml` file itself is not modified. Each kubeconfig must already be authenticated and have the correct namespace context set before running.
+
+
 
 ## Troubleshooting
 

@@ -22,7 +22,9 @@ import inspect
 from plano import *
 
 __all__ = [
-    "generate_readme", "run_steps", "Minikube",
+    "generate_readme", "run_steps", "run_step", "print_debug_output", "Minikube",
+    "save_demo_context", "load_demo_context", "is_demo_active",
+    "validate_demo_context", "create_extended_model",
 ]
 
 standard_text = read_yaml(join(get_parent_dir(__file__), "standardtext.yaml"))
@@ -303,12 +305,15 @@ def save_demo_context(model, work_dir):
     # Extract site data from model
     sites_data = {}
     for site_name, site in model.sites:
-        sites_data[site_name] = {
-            "name": site.name,
+        site_data = {
             "platform": site.platform,
-            "namespace": site.namespace if site.namespace else None,
             "env": dict(site.env)
         }
+        if site.namespace:
+            site_data["namespace"] = site.namespace
+        if "title" in site.data:
+            site_data["title"] = site.data["title"]
+        sites_data[site_name] = site_data
 
     context = {
         "version": "1.0",
@@ -332,7 +337,7 @@ def load_demo_context():
     work_dir = join(get_user_temp_dir(), "skewer")
     context_file = join(work_dir, ".demo-context.json")
 
-    if not file_exists(context_file):
+    if not exists(context_file):
         return None
 
     try:
@@ -375,14 +380,14 @@ def validate_demo_context(context):
              f"Please restart the demo.")
 
     work_dir = context.get("work_dir")
-    if not work_dir or not dir_exists(work_dir):
+    if not work_dir or not is_dir(work_dir):
         fail(f"Demo work directory not found. Demo may have been cleaned up.")
 
     # Validate kubeconfigs exist
     for site_name, site_data in context.get("sites", {}).items():
         if site_data.get("platform") == "kubernetes":
             kubeconfig = site_data.get("env", {}).get("KUBECONFIG")
-            if kubeconfig and not file_exists(kubeconfig):
+            if kubeconfig and not exists(kubeconfig):
                 fail(f"Kubeconfig for site '{site_name}' not found: {kubeconfig}")
 
 def create_extended_model(context, extend_file):
@@ -393,7 +398,7 @@ def create_extended_model(context, extend_file):
     and applies the steps from the extend file.
     """
     # Read and validate extend file
-    if not file_exists(extend_file):
+    if not exists(extend_file):
         fail(f"Extend file not found: {extend_file}")
 
     extend_data = read_yaml(extend_file)
@@ -407,10 +412,18 @@ def create_extended_model(context, extend_file):
     if not isinstance(extend_data["steps"], list):
         fail(f"'steps' section must be a list of step definitions")
 
+    # Clean up site data (remove 'name' for backward compatibility with old context files)
+    sites_data = {}
+    for site_name, site_data in context["sites"].items():
+        clean_site_data = dict(site_data)
+        # Remove 'name' if present (it's passed separately to Site constructor)
+        clean_site_data.pop("name", None)
+        sites_data[site_name] = clean_site_data
+
     # Build a synthetic skewer.yaml structure
     synthetic_data = {
         "title": f"Extended Demo from {extend_file}",
-        "sites": context["sites"],
+        "sites": sites_data,
         "steps": extend_data["steps"]
     }
 

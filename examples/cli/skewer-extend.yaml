@@ -8,20 +8,14 @@ steps:
   - title: Check running pods
     commands:
       west:
-        - run: kubectl get pods -n west
+        - run: kubectl get pods
       east:
-        - run: kubectl get pods -n east
+        - run: kubectl get pods
 
-  - title: Check Skupper status
+  - title: Check Skupper site status
     commands:
       west:
-        - run: skupper status
+        - run: skupper site status
       east:
-        - run: skupper status
+        - run: skupper site status
 
-  - title: List Skupper services
-    commands:
-      west:
-        - run: skupper service status
-      east:
-        - run: skupper service status
