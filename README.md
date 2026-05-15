@@ -17,6 +17,10 @@ and produces two outputs: a `README.md` file and a test routine.
   - [Skewer YAML](#skewer-yaml)
   - [Standard steps](#standard-steps)
   - [Demo mode](#demo-mode)
+  - [Extended testing with demo_extend and test](#extended-testing-with-demo_extend-and-test)
+    - [Interactive development with demo_extend](#interactive-development-with-demo_extend)
+    - [Batch testing for CI/CD with test](#batch-testing-for-cicd-with-test)
+  - [Running against existing clusters](#running-against-existing-clusters)
   - [Troubleshooting](#troubleshooting)
     - [Subnet is already used](#subnet-is-already-used)
   - [Notes on speeding up Minikube](#notes-on-speeding-up-minikube)
@@ -96,6 +100,7 @@ commands:
     clean               Clean up the source tree
     run                 Run the example steps
     demo                Run the example steps and pause for a demo before cleaning up
+    demo_extend         Extend a running demo with additional steps from a YAML file
     test                Test README generation and run the steps on Minikube
     update-skewer       Update the embedded Skewer repo and GitHub workflow
 ~~~
@@ -366,6 +371,111 @@ It is enabled by setting the environment variable `SKEWER_DEMO` to any
 value when you call `./plano run` or one of its variants.  You can
 also use `./plano demo`, which sets the variable for you.
 
+## Extended testing with demo_extend and test
+
+Skewer provides two complementary approaches for extending your tests beyond the base `skewer.yaml` file:
+
+### Interactive development with demo_extend
+
+The `demo_extend` command allows you to attach to a running demo and execute additional test scenarios while keeping the clusters and services active. This is useful for iterative testing and exploration.
+
+**Usage:**
+
+In one terminal, start the demo:
+
+```console
+$ ./plano demo
+```
+
+The demo will execute all setup steps and then pause, displaying connection information.
+
+In a separate terminal, run additional test scenarios:
+
+```console
+$ ./plano demo_extend skewer-extend.yaml
+$ ./plano demo_extend skewer-load-test.yaml
+$ ./plano demo_extend skewer-chaos.yaml
+```
+
+Each `demo_extend` invocation:
+- Attaches to the running demo's environment (same kubeconfigs, namespaces, clusters)
+- Executes the steps defined in the extension YAML file
+- Exits while leaving the demo running for further testing
+
+The extension YAML files follow the same format as `skewer.yaml` but only require a `steps` section (sites are inherited from the running demo):
+
+```yaml
+# skewer-extend.yaml
+steps:
+  - title: Check pod status
+    commands:
+      west:
+        - run: kubectl get pods
+      east:
+        - run: kubectl get pods
+
+  - title: Verify Skupper connectivity
+    commands:
+      west:
+        - run: skupper site status
+      east:
+        - run: skupper link status
+```
+
+When finished, return to the first terminal and type `yes` to clean up and exit.
+
+### Batch testing for CI/CD with test
+
+The `test` command automatically discovers and runs all test scenarios in a single batch execution, making it ideal for CI/CD pipelines.
+
+**Usage:**
+
+```console
+$ ./plano test
+```
+
+This command:
+1. Generates the README (as before)
+2. Discovers all `skewer-*.yaml` files in the current directory
+3. Concatenates their steps to the base `skewer.yaml` steps
+4. Runs all steps in sequence on Minikube
+5. Cleans up automatically when complete
+
+If no `skewer-*.yaml` files exist, `test` runs only the base `skewer.yaml` (backward compatible).
+
+**Example project structure:**
+
+```
+skewer.yaml              # Base: setup clusters, deploy app, basic smoke test
+skewer-extend.yaml       # Additional verification steps
+skewer-load-test.yaml    # Load testing scenario
+skewer-failure.yaml      # Chaos/failure testing
+```
+
+**GitHub Actions example:**
+
+```yaml
+name: Test
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: pip install pyyaml
+      - name: Run all tests
+        run: ./plano test
+```
+
+The `test` command runs `skewer.yaml` + `skewer-extend.yaml` + `skewer-load-test.yaml` + `skewer-failure.yaml` automatically, in alphabetical order.
+
+**When to use each approach:**
+
+- Use `demo` + `demo_extend` for interactive development and debugging
+- Use `test` for automated CI/CD pipelines and comprehensive test runs
+
+Both approaches work with custom kubeconfigs as described in the next section.
 
 ## Running against existing clusters
 

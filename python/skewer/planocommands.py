@@ -122,9 +122,51 @@ def demo_extend(extend_file, debug=False):
 def test_(debug=False):
     """
     Test README generation and run the steps on Minikube
+
+    If skewer-*.yaml files exist, their steps will be appended to
+    skewer.yaml steps and run in sequence. This is useful for CI/CD
+    where you want to run multiple test scenarios in one batch.
     """
     generate(output=make_temp_file())
-    run_(debug=debug)
+
+    # Find and combine skewer-*.yaml extension files
+    extension_files = sorted(list_dir(".", "skewer-*.yaml"))
+
+    if not extension_files:
+        # No extensions, just run normally
+        run_(debug=debug)
+        return
+
+    notice(f"Found {len(extension_files)} extension file(s): {', '.join(extension_files)}")
+
+    # Load base skewer.yaml
+    base_data = read_yaml("skewer.yaml")
+    base_steps = base_data.get("steps", [])
+
+    # Collect steps from all extension files
+    for ext_file in extension_files:
+        notice(f"Loading steps from {ext_file}")
+        ext_data = read_yaml(ext_file)
+        ext_steps = ext_data.get("steps", [])
+        if ext_steps:
+            base_steps.extend(ext_steps)
+            notice(f"  Added {len(ext_steps)} step(s)")
+
+    # Create combined model with all steps
+    base_data["steps"] = base_steps
+
+    # Write to temporary file
+    combined_file = make_temp_file()
+    write_yaml(combined_file, base_data)
+
+    notice(f"Running {len(base_steps)} total step(s)")
+
+    # Run with combined file
+    if True:  # No kubeconfigs
+        with Minikube(combined_file) as mk:
+            run_steps(combined_file, kubeconfigs=mk.kubeconfigs, work_dir=mk.work_dir, debug=debug)
+
+    remove(combined_file)
 
 @command
 def update_skewer():
