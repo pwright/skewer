@@ -73,6 +73,52 @@ def demo(*kubeconfigs, debug=False):
         run_(*kubeconfigs, debug=debug)
 
 @command(parameters=[_debug_param])
+def demo_extend(extend_file, debug=False):
+    """
+    Extend a running demo with additional steps
+
+    The 'demo' command must be running and paused in another terminal.
+    This command will attach to the running demo context and execute
+    additional steps defined in the extend file.
+
+    The extend file should be a YAML file with a 'steps' section,
+    using the same format as skewer.yaml:
+
+    steps:
+      - title: My additional step
+        commands:
+          west:
+            - run: kubectl get pods
+          east:
+            - run: skupper status
+
+    Examples:
+      ./plano demo_extend my-extra-steps.yaml
+      ./plano demo_extend demo-scenario-2.yaml --debug
+    """
+    notice(f"Extending demo with steps from '{extend_file}'")
+
+    # Load and validate demo context
+    context = load_demo_context()
+    validate_demo_context(context)
+
+    notice(f"Attached to demo (PID {context['pid']}, work_dir={context['work_dir']})")
+
+    # Create extended model
+    model = create_extended_model(context, extend_file)
+
+    # Run the extension steps
+    try:
+        for step in model.steps:
+            run_step(model, step, context["work_dir"], check=True)
+
+        notice("Extension steps completed successfully")
+    except:
+        if debug:
+            print_debug_output(model)
+        raise
+
+@command(parameters=[_debug_param])
 def test_(debug=False):
     """
     Test README generation and run the steps on Minikube

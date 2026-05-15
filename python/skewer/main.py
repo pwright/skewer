@@ -153,6 +153,7 @@ def run_steps(skewer_file, kubeconfigs=[], work_dir=None, debug=False):
             run_step(model, step, work_dir)
 
         if "SKEWER_DEMO" in ENV:
+            save_demo_context(model, work_dir)
             pause_for_demo(model)
     except:
         if debug:
@@ -287,6 +288,149 @@ def print_debug_output(model):
                 # run("kubectl logs deployment/skupper-service-controller", check=False)
 
     print("-- End of debug output")
+
+def save_demo_context(model, work_dir):
+    """
+    Save the current demo context to a JSON state file.
+
+    This allows another process to attach to the running demo
+    and execute additional steps in the same environment.
+    """
+    import os
+
+    context_file = join(work_dir, ".demo-context.json")
+
+    # Extract site data from model
+    sites_data = {}
+    for site_name, site in model.sites:
+        sites_data[site_name] = {
+            "name": site.name,
+            "platform": site.platform,
+            "namespace": site.namespace if site.namespace else None,
+            "env": dict(site.env)
+        }
+
+    context = {
+        "version": "1.0",
+        "created_at": get_time(),
+        "pid": os.getpid(),
+        "work_dir": work_dir,
+        "skewer_file": model.skewer_file,
+        "sites": sites_data,
+        "demo_active": True
+    }
+
+    write_json(context_file, context)
+    notice(f"Demo context saved (PID {context['pid']})")
+
+def load_demo_context():
+    """
+    Load demo context from state file if it exists.
+
+    Returns None if no demo is running.
+    """
+    work_dir = join(get_user_temp_dir(), "skewer")
+    context_file = join(work_dir, ".demo-context.json")
+
+    if not file_exists(context_file):
+        return None
+
+    try:
+        context = read_json(context_file)
+        return context
+    except:
+        return None
+
+def is_demo_active(context):
+    """
+    Check if the demo process is still running.
+
+    Returns True if the process exists and is alive.
+    """
+    import os
+    import signal
+
+    pid = context.get("pid")
+    if not pid:
+        return False
+
+    try:
+        # Signal 0 checks process existence without killing it
+        os.kill(pid, 0)
+        return context.get("demo_active", False)
+    except (OSError, ProcessLookupError):
+        return False
+
+def validate_demo_context(context):
+    """
+    Validate that demo context is usable.
+
+    Raises PlanoError with helpful message if validation fails.
+    """
+    if not context:
+        fail("No active demo found. Run './plano demo' first in another terminal.")
+
+    if not is_demo_active(context):
+        fail(f"Demo process (PID {context.get('pid', 'unknown')}) is no longer running. "
+             f"Please restart the demo.")
+
+    work_dir = context.get("work_dir")
+    if not work_dir or not dir_exists(work_dir):
+        fail(f"Demo work directory not found. Demo may have been cleaned up.")
+
+    # Validate kubeconfigs exist
+    for site_name, site_data in context.get("sites", {}).items():
+        if site_data.get("platform") == "kubernetes":
+            kubeconfig = site_data.get("env", {}).get("KUBECONFIG")
+            if kubeconfig and not file_exists(kubeconfig):
+                fail(f"Kubeconfig for site '{site_name}' not found: {kubeconfig}")
+
+def create_extended_model(context, extend_file):
+    """
+    Create a Model instance from saved context + extend file.
+
+    This reconstructs the site configuration from the saved context
+    and applies the steps from the extend file.
+    """
+    # Read and validate extend file
+    if not file_exists(extend_file):
+        fail(f"Extend file not found: {extend_file}")
+
+    extend_data = read_yaml(extend_file)
+
+    if not isinstance(extend_data, dict):
+        fail(f"Invalid extend file format: expected YAML dictionary")
+
+    if "steps" not in extend_data:
+        fail(f"Extend file '{extend_file}' must contain a 'steps' section")
+
+    if not isinstance(extend_data["steps"], list):
+        fail(f"'steps' section must be a list of step definitions")
+
+    # Build a synthetic skewer.yaml structure
+    synthetic_data = {
+        "title": f"Extended Demo from {extend_file}",
+        "sites": context["sites"],
+        "steps": extend_data["steps"]
+    }
+
+    # Write synthetic file temporarily
+    synthetic_file = join(context["work_dir"], ".extended-model.yaml")
+    write_yaml(synthetic_file, synthetic_data)
+
+    try:
+        # Create model using existing Model class
+        model = Model(synthetic_file, kubeconfigs=[])
+
+        # Override site env vars from context (already expanded paths)
+        for site_name, site in model.sites:
+            if site_name in context["sites"]:
+                site.env.update(context["sites"][site_name]["env"])
+
+        model.check()
+        return model
+    except Exception as e:
+        fail(f"Failed to create extended model: {e}")
 
 def generate_readme(skewer_file, output_file):
     notice(f"Generating the readme (skewer_file='{skewer_file}', output_file='{output_file}')")

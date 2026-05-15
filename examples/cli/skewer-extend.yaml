@@ -1,0 +1,27 @@
+# Example extension file for extending a running demo
+#
+# Usage:
+#   Terminal 1: ./plano demo
+#   Terminal 2: ./plano demo_extend examples/cli/skewer-extend.yaml
+
+steps:
+  - title: Check running pods
+    commands:
+      west:
+        - run: kubectl get pods -n west
+      east:
+        - run: kubectl get pods -n east
+
+  - title: Check Skupper status
+    commands:
+      west:
+        - run: skupper status
+      east:
+        - run: skupper status
+
+  - title: List Skupper services
+    commands:
+      west:
+        - run: skupper service status
+      east:
+        - run: skupper service status
