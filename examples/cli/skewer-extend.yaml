@@ -5,12 +5,7 @@
 #   Terminal 2: ./plano demo_extend examples/cli/skewer-extend.yaml
 
 steps:
-  - title: Check running pods
-    commands:
-      west:
-        - run: kubectl get pods
-      east:
-        - run: kubectl get pods
+
 
   - title: Check Skupper site status
     commands:
@@ -18,4 +13,13 @@ steps:
         - run: skupper site status
       east:
         - run: skupper site status
+
+
+  - title: Install Skupper Network Observer and expose the console
+    commands:
+      west:
+        - run: helm install skupper-network-observer oci://quay.io/skupper/helm/network-observer --version 2.2.0
+        - run: oc create route passthrough skupper-console --service=skupper-network-observer --port=https
+        - run: kubectl get secret skupper-network-observer-auth -o jsonpath='{.data.htpasswd}' | base64 -d | sed 's/\(.*\):{PLAIN}\(.*\)/\1 \2\n/'
+        - run: skupper link generate > ~/link.yaml
 

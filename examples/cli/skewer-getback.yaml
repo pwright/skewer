@@ -1,0 +1,136 @@
+# Example extension file for deploying Get-Back service to a running demo
+#
+# Get-Back is a dual-protocol counter service with HTTP/TCP endpoints and
+# an interactive web dashboard for demonstrating load balancing across
+# multiple Skupper sites.
+#
+# Usage:
+#   Terminal 1: ./plano demo
+#   Terminal 2: ./plano demo_extend examples/cli/skewer-getback.yaml
+#
+# After deployment, access the dashboard:
+#   kubectl port-forward -n west svc/getback-dashboard 9093:9093
+#   Open http://localhost:9093/
+
+steps:
+
+  - title: Deploy Get-Back service to west site
+    preamble: |
+      The Get-Back service is a demonstration tool for visualizing
+      load balancing across multiple sites. We deploy the full stack
+      to the west site, including the deployment, local service
+      (dashboard only), Skupper connectors, and Skupper listeners.
+
+      The local service exposes only the dashboard (port 9093) for
+      direct access. The backend HTTP/TCP services are exposed via
+      Skupper listeners, which aggregate traffic from all connected
+      sites (east and west), enabling multi-cluster load balancing.
+    commands:
+      west:
+        - run: kubectl apply -f west/deployment.yaml
+          output: deployment.apps/getback created
+        - run: kubectl apply -f west/service.yaml
+          output: service/getback-dashboard created
+        - run: kubectl apply -f west/connectors.yaml
+          output: |
+            connector.skupper.io/west-backend created
+            connector.skupper.io/west-backend-http created
+        - run: kubectl apply -f west/listeners.yaml
+          output: |
+            multikeylistener.skupper.io/mkl-backend created
+            multikeylistener.skupper.io/mkl-backend-http created
+
+  - title: Deploy Get-Back service to east site
+    preamble: |
+      In the east site, we deploy a minimal configuration: just the
+      deployment and Skupper connectors. The connectors expose the
+      local pods to the Skupper network using routing keys.
+
+      There is no local service or listeners in east - traffic is
+      aggregated through the west site's listeners.
+    commands:
+      east:
+        - run: kubectl apply -f east/deployment.yaml
+          output: deployment.apps/getback created
+        - run: kubectl apply -f east/connectors.yaml
+          output: |
+            connector.skupper.io/east-backend created
+            connector.skupper.io/east-backend-http created
+
+  - title: Wait for deployments to be ready
+    preamble: |
+      Wait for the Get-Back pods to be running and ready in both sites
+      before proceeding. This ensures the health probes are passing and
+      the services are ready to accept traffic.
+    commands:
+      west:
+        - await_resource: deployment/getback
+      east:
+        - await_resource: deployment/getback
+    postamble: |
+      Both deployments are now available. The pods are running and
+      the readiness probes on port 9091 are responding.
+
+  - title: Verify Skupper connectors and listeners
+    preamble: |
+      Check that the Skupper connectors and listeners were created
+      successfully. The connectors expose local pods to the Skupper
+      network, while the listeners (in west) aggregate traffic from
+      multiple sites.
+    commands:
+      west:
+        - run: kubectl get connectors
+        - run: kubectl get listeners
+        - run: kubectl get pods -l app=getback
+      east:
+        - run: kubectl get connectors
+        - run: kubectl get pods -l app=getback
+    postamble: |
+      You should see:
+      - **West**: 2 connectors, 2 listeners, 1 pod
+      - **East**: 2 connectors, 1 pod
+
+      The listeners in west provide aggregated endpoints that load
+      balance across both sites.
+
+  - title: Access the Get-Back dashboard
+    preamble: |
+      Use port-forward to access the interactive Get-Back dashboard.
+      The dashboard provides a visual demonstration of load balancing,
+      showing real-time request distribution across pods and sites.
+
+      The dashboard service is exposed locally via the getback-dashboard
+      ClusterIP service on port 9093. The backend services (HTTP/TCP) are
+      accessed through Skupper listeners for cross-site load balancing.
+    commands:
+      west:
+        - run: kubectl port-forward service/getback-dashboard 9093:9093
+          apply: readme
+        - run: kubectl port-forward service/getback-dashboard 9093:9093 > /dev/null &
+          apply: test
+    postamble: |
+      You can now access the dashboard by navigating to
+      [http://localhost:9093](http://localhost:9093) in your browser.
+
+      **Service architecture**:
+      - Dashboard: accessed via local `getback-dashboard` service (port 9093)
+      - Backend HTTP/TCP: accessed via Skupper listeners for cross-site load balancing
+
+      **Aggregated endpoints** (from Skupper listeners):
+      - HTTP: `mkl-backend-http:9091`
+      - TCP: `mkl-backend:9092`
+
+      **Dashboard features**:
+      - Send concurrent HTTP/TCP requests
+      - View real-time request distribution across sites
+      - Monitor load balancing between east and west clusters
+
+      **Testing the setup**:
+      1. Open the dashboard at http://localhost:9093/
+      2. Set the HTTP backend to `mkl-backend-http:9091`
+      3. Click "Send HTTP Request" multiple times
+      4. Watch the distribution panel show traffic spreading across both sites
+
+      This architecture demonstrates the separation between local services
+      (dashboard access) and Skupper-managed services (backend endpoints),
+      preventing interference with Skupper's load balancing.
