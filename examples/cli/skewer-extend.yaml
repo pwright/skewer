@@ -26,7 +26,7 @@ steps:
   - title: Install Skupper Network Observer and expose the console
     commands:
       west:
-        - run: helm install skupper-network-observer oci://quay.io/skupper/helm/network-observer --version 2.2.0
+        - run: helm install skupper-network-observer oci://quay.io/skupper/helm/network-observer --version 2.2.1
         - run: oc create route passthrough skupper-console --service=skupper-network-observer --port=https
         - run: kubectl get secret skupper-network-observer-auth -o jsonpath='{.data.htpasswd}' | base64 -d | sed 's/\(.*\):{PLAIN}\(.*\)/\1 \2\n/'
         - run: skupper link generate > ~/link.yaml
