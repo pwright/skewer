@@ -1,0 +1,202 @@
+# Example extension file for deploying Get-Back service with TLS to a running demo
+#
+# Get-Back is a dual-protocol counter service with HTTPS/TLS-TCP endpoints and
+# an interactive web dashboard for demonstrating load balancing across
+# multiple Skupper sites with TLS encryption.
+#
+# Usage:
+#   Terminal 1: ./plano demo
+#   Terminal 2: ./plano demo_extend examples/cli/skewer-getback-tls.yaml
+#
+# After deployment, access the dashboard:
+#   kubectl port-forward -n west svc/getback-tls 9093:9093
+#   Open http://localhost:9093/
+
+title: Get-Back Multi-Cluster Demonstration with TLS
+subtitle: Deploy an interactive load balancing visualization tool with TLS encryption across Skupper sites
+overview: |
+  This extension deploys the Get-Back service with TLS encryption to both west
+  and east sites, demonstrating Skupper's multi-cluster load balancing capabilities
+  with secure connections. Get-Back is a dual-protocol counter service with
+  HTTPS/TLS-TCP endpoints and an interactive web dashboard that visualizes request
+  distribution across sites in real-time. The application provides native TLS support.
+
+steps:
+
+  - title: Create TLS certificates for west site
+    preamble: |
+      Generate self-signed TLS certificates and create Kubernetes secrets
+      for the getback application in the west site. These certificates will
+      be used to serve HTTPS and TLS-TCP connections.
+    commands:
+      west:
+        - run: |
+            openssl req -x509 -newkey rsa:2048 -nodes \
+              -keyout /tmp/getback-tls-key.pem \
+              -out /tmp/getback-tls-cert.pem \
+              -days 365 \
+              -subj "/CN=getback-tls" 2>/dev/null
+          apply: test
+        - run: |
+            kubectl create secret generic getback-tls-cert \
+              --from-file=cert.pem=/tmp/getback-tls-cert.pem \
+              --from-file=key.pem=/tmp/getback-tls-key.pem
+          output: secret/getback-tls-cert created
+        - run: rm /tmp/getback-tls-key.pem /tmp/getback-tls-cert.pem
+          apply: test
+
+  - title: Create TLS certificates for east site
+    preamble: |
+      Generate self-signed TLS certificates and create Kubernetes secrets
+      for the getback application in the east site.
+    commands:
+      east:
+        - run: |
+            openssl req -x509 -newkey rsa:2048 -nodes \
+              -keyout /tmp/getback-tls-key.pem \
+              -out /tmp/getback-tls-cert.pem \
+              -days 365 \
+              -subj "/CN=getback-tls" 2>/dev/null
+          apply: test
+        - run: |
+            kubectl create secret generic getback-tls-cert \
+              --from-file=cert.pem=/tmp/getback-tls-cert.pem \
+              --from-file=key.pem=/tmp/getback-tls-key.pem
+          output: secret/getback-tls-cert created
+        - run: rm /tmp/getback-tls-key.pem /tmp/getback-tls-cert.pem
+          apply: test
+
+  - title: Deploy Get-Back TLS service to west site
+    preamble: |
+      The Get-Back service is a demonstration tool for visualizing
+      load balancing across multiple sites. We deploy the full stack
+      with TLS encryption to the west site, including the deployment,
+      local service, Skupper connectors, and Skupper listeners.
+
+      The deployment runs the getback application with native TLS
+      support, serving HTTPS on port 9091 and TLS-TCP on port 9092.
+      The application reads the TLS certificates from the mounted
+      secret volume.
+
+      The listeners aggregate traffic from all connected sites (east
+      and west), enabling multi-cluster load balancing with TLS.
+    commands:
+      west:
+        - run: kubectl apply -f west/deployment-tls.yaml
+          output: deployment.apps/getback-tls created
+        - run: kubectl apply -f west/service-tls.yaml
+          output: service/getback-tls created
+        - run: kubectl apply -f west/connectors-tls.yaml
+          output: |
+            connector.skupper.io/west-backend-tls created
+            connector.skupper.io/west-backend-http-tls created
+        - run: kubectl apply -f west/listeners-tls.yaml
+          output: |
+            multikeylistener.skupper.io/mkl-backend-tls created
+            multikeylistener.skupper.io/mkl-backend-http-tls created
+
+  - title: Deploy Get-Back TLS service to east site
+    preamble: |
+      In the east site, we deploy a minimal configuration with TLS
+      encryption: the deployment, local service, and Skupper connectors.
+      The connectors expose the local pods to the Skupper network using
+      routing keys.
+
+      Like west, the deployment runs the getback application with native
+      TLS support on ports 9091 (HTTPS) and 9092 (TLS-TCP).
+
+      There are no listeners in east - traffic is aggregated through
+      the west site's listeners.
+    commands:
+      east:
+        - run: kubectl apply -f east/deployment-tls.yaml
+          output: deployment.apps/getback-tls created
+        - run: kubectl apply -f east/service-tls.yaml
+          output: service/getback-tls created
+        - run: kubectl apply -f east/connectors-tls.yaml
+          output: |
+            connector.skupper.io/east-backend-tls created
+            connector.skupper.io/east-backend-http-tls created
+
+  - title: Wait for deployments to be ready
+    preamble: |
+      Wait for the Get-Back TLS pods to be running and ready in both sites
+      before proceeding. This ensures the health probes are passing and
+      the services are ready to accept TLS-encrypted traffic.
+    commands:
+      west:
+        - await_resource: deployment/getback-tls
+      east:
+        - await_resource: deployment/getback-tls
+    postamble: |
+      Both deployments are now available. The pods are running with
+      native TLS support enabled.
+
+  - title: Verify Skupper connectors and listeners
+    preamble: |
+      Check that the Skupper connectors and listeners were created
+      successfully. The connectors expose local TLS-enabled pods to
+      the Skupper network, while the listeners (in west) aggregate
+      traffic from multiple sites.
+    commands:
+      west:
+        - run: kubectl get connectors
+        - run: kubectl get listeners
+        - run: kubectl get pods -l app=getback-tls
+      east:
+        - run: kubectl get connectors
+        - run: kubectl get pods -l app=getback-tls
+    postamble: |
+      You should see:
+      - **West**: 2 connectors, 2 listeners, 1 pod
+      - **East**: 2 connectors, 1 pod
+
+      Each pod runs the getback application with native TLS support.
+      The listeners in west provide aggregated endpoints that load
+      balance across both sites.
+
+  - title: Access the Get-Back dashboard
+    preamble: |
+      Use port-forward to access the interactive Get-Back dashboard.
+      The dashboard provides a visual demonstration of load balancing,
+      showing real-time request distribution across pods and sites with
+      TLS-encrypted connections.
+
+      The dashboard service is exposed locally via the getback-tls
+      ClusterIP service on port 9093. The backend services (HTTPS/TLS-TCP)
+      are accessed through Skupper listeners for cross-site load balancing.
+    commands:
+      west:
+        - run: kubectl port-forward service/getback-tls 9093:9093
+          apply: readme
+        - run: kubectl port-forward service/getback-tls 9093:9093 > /dev/null &
+          apply: test
+    postamble: |
+      You can now access the dashboard by navigating to
+      [http://localhost:9093](http://localhost:9093) in your browser.
+
+      **Service architecture**:
+      - Dashboard: accessed via local `getback-tls` service (port 9093)
+      - Backend HTTPS/TLS-TCP: accessed via Skupper listeners for cross-site load balancing
+      - TLS: natively handled by the getback application
+
+      **Aggregated endpoints** (from Skupper listeners):
+      - HTTPS: `mkl-backend-http-tls:9091`
+      - TLS-TCP: `mkl-backend-tls:9092`
+
+      **Dashboard features**:
+      - Send concurrent HTTPS/TLS-TCP requests
+      - View real-time request distribution across sites
+      - Monitor load balancing between east and west clusters
+      - All backend traffic is TLS-encrypted
+
+      **Testing the setup**:
+      1. Open the dashboard at http://localhost:9093/
+      2. Set the HTTP backend to `mkl-backend-http-tls:9091`
+      3. Enable the "Use HTTPS" checkbox
+      4. Click "Send HTTP Request" multiple times
+      5. Watch the distribution panel show traffic spreading across both sites
+
+      This architecture demonstrates native TLS encryption combined with
+      Skupper's multi-cluster load balancing via listeners that aggregate
+      traffic from all sites.
