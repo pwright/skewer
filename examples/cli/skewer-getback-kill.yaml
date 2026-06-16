@@ -1,0 +1,75 @@
+# Cleanup extension file for removing Get-Back service from running demo
+#
+# This removes all resources deployed by skewer-getback.yaml, including
+# deployments, services, connectors, and listeners from both east and west sites.
+#
+# Usage:
+#   ./plano demo_extend examples/cli/skewer-getback-kill.yaml
+
+title: Get-Back Cleanup
+subtitle: Remove the Get-Back service and all Skupper resources from both sites
+overview: |
+  This extension removes the Get-Back service deployment from both west and east sites,
+  cleaning up all associated Kubernetes resources including deployments, services,
+  Skupper connectors, and Skupper listeners.
+
+steps:
+
+  - title: Remove Get-Back resources from west site
+    preamble: |
+      Remove all Get-Back resources from the west site in reverse order:
+      listeners, connectors, service, and deployment.
+    commands:
+      west:
+        - run: kubectl delete -f west/listeners.yaml
+          output: |
+            multikeylistener.skupper.io "mkl-backend" deleted
+            multikeylistener.skupper.io "mkl-backend-http" deleted
+        - run: kubectl delete -f west/connectors.yaml
+          output: |
+            connector.skupper.io "west-backend" deleted
+            connector.skupper.io "west-backend-http" deleted
+        - run: kubectl delete -f west/service.yaml
+          output: service "getback-dashboard" deleted
+        - run: kubectl delete -f west/deployment.yaml
+          output: deployment.apps "getback" deleted
+
+  - title: Remove Get-Back resources from east site
+    preamble: |
+      Remove all Get-Back resources from the east site:
+      connectors and deployment.
+    commands:
+      east:
+        - run: kubectl delete -f east/connectors.yaml
+          output: |
+            connector.skupper.io "east-backend" deleted
+            connector.skupper.io "east-backend-http" deleted
+        - run: kubectl delete -f east/deployment.yaml
+          output: deployment.apps "getback" deleted
+
+  - title: Stop port-forward process
+    preamble: |
+      Kill any background port-forward process for the Get-Back dashboard.
+    commands:
+      west:
+        - run: pkill -f "kubectl port-forward.*getback-dashboard"
+
+  - title: Verify cleanup
+    preamble: |
+      Confirm that all Get-Back resources have been removed from both sites.
+    commands:
+      west:
+        - run: kubectl get pods -l app=getback
+          output: No resources found in west namespace.
+        - run: kubectl get connectors
+        - run: kubectl get listeners
+      east:
+        - run: kubectl get pods -l app=getback
+          output: No resources found in east namespace.
+        - run: kubectl get connectors
+    postamble: |
+      All Get-Back resources have been successfully removed from both sites.
+      The Skupper network is still intact and ready for other demonstrations.
+
+      If you had a port-forward running manually, you can stop it with:
+        pkill -f "kubectl port-forward.*getback-dashboard"
